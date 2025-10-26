@@ -1,28 +1,25 @@
-import express from "express";
 import dotenv from "dotenv";
-import cors from "cors";
-import authRoutes from "./routes/auth.js";
-import records from "./routes/record.js";
+dotenv.config({ path: "./config.env" });
 
-dotenv.config();
+import express from "express";
+import cors from "cors";
+import connectDB from "./db/connection.js";
+import authRoutes from "./routes/auth.js";
 
 const app = express();
-
-// parse JSON bodies
 app.use(express.json());
+app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 
-// enable CORS for your client (adjust origin if needed)
-app.use(cors({
-  origin: "http://localhost:5173",
-  credentials: true,
-}));
-
-// mount auth
 app.use("/api/auth", authRoutes);
-app.use("/record", records);
 
-// start the Express server
-const PORT = process.env.PORT || 5050;
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
+const PORT = process.env.PORT || 5000;
+
+(async () => {
+  try {
+    await connectDB();
+    app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+  } catch (err) {
+    console.error("Failed to start server:", err.message);
+    process.exit(1);
+  }
+})();
