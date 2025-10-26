@@ -58,4 +58,25 @@ router.get("/me", requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/auth/me  -- update current user's profile (name)
+router.patch("/me", requireAuth, async (req, res) => {
+  try {
+    const { name } = req.body || {};
+    if (!name) return res.status(400).json({ message: "Name is required" });
+
+    const updated = await User.findByIdAndUpdate(
+      req.userId,
+      { name: name.trim() },
+      { new: true, runValidators: true, context: "query" }
+    ).select("-password");
+
+    if (!updated) return res.status(404).json({ message: "User not found" });
+
+    res.json({ user: updated });
+  } catch (err) {
+    console.error("PATCH /api/auth/me error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 export default router;

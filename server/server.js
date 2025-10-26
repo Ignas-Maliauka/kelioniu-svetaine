@@ -8,7 +8,17 @@ import authRoutes from "./routes/auth.js";
 
 const app = express();
 app.use(express.json());
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // allow tools like Insomnia
+      const allowed = ["http://localhost:5173", "http://localhost:5174"];
+      cb(null, allowed.includes(origin));
+    },
+    credentials: true,
+  })
+);
 
 app.use("/api/auth", authRoutes);
 
