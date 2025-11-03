@@ -13,6 +13,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Account from "./components/Account";
 import EventPage from "./components/EventPage";
 import EventForm from "./components/EventForm";
+import ActivityForm from "./components/ActivityForm";
+import PlanningStepForm from "./components/PlanningStepForm";
 import "./index.css";
 
 const router = createBrowserRouter([
@@ -20,7 +22,6 @@ const router = createBrowserRouter([
     path: "/",
     element: <App />,
     children: [
-      // protect the index/main page
       { index: true, element: <ProtectedRoute><MainPage /></ProtectedRoute> },
     ],
   },
@@ -35,15 +36,20 @@ const router = createBrowserRouter([
     path: "/events",
     element: <App />,
     children: [
-      // create
+      // create / edit event
       { path: "new", element: <ProtectedRoute><EventForm /></ProtectedRoute> },
-      // view
       { path: ":id", element: <ProtectedRoute><EventPage /></ProtectedRoute> },
-      // edit
       { path: ":id/edit", element: <ProtectedRoute><EventForm /></ProtectedRoute> },
+
+      // activities nested under events
+      { path: ":id/activities/new", element: <ProtectedRoute><ActivityForm /></ProtectedRoute> },
+      { path: ":id/activities/:aid/edit", element: <ProtectedRoute><ActivityForm /></ProtectedRoute> },
+
+      // planning steps nested under events
+      { path: ":id/planning-steps/new", element: <ProtectedRoute><PlanningStepForm /></ProtectedRoute> },
+      { path: ":id/planning-steps/:sid/edit", element: <ProtectedRoute><PlanningStepForm /></ProtectedRoute> },
     ],
   },
-  // auth routes (not nested under App)
   {
     path: "/login",
     element: <Login />,

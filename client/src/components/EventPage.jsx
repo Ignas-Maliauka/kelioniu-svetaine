@@ -52,6 +52,40 @@ export default function EventPage() {
     };
   }, [id, token]);
 
+  async function deleteActivity(aid) {
+    if (!confirm("Delete this activity?")) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/activities/${aid}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.message || "Delete failed");
+      }
+      setActivities((prev) => prev.filter((a) => a._id !== aid));
+    } catch (err) {
+      alert(err.message || "Delete failed");
+    }
+  }
+
+  async function deleteStep(sid) {
+    if (!confirm("Delete this planning step?")) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/planning-steps/${sid}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.message || "Delete failed");
+      }
+      setSteps((prev) => prev.filter((s) => s._id !== sid));
+    } catch (err) {
+      alert(err.message || "Delete failed");
+    }
+  }
+
   if (!token) return <p className="p-4">Please log in.</p>;
   if (loading) return <p className="p-4">Loading event...</p>;
   if (error) return <p className="p-4 text-red-600">{error}</p>;
@@ -122,18 +156,45 @@ export default function EventPage() {
       </section>
 
       <section className="mb-6">
-        <h2 className="text-lg font-medium mb-2">Activities</h2>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-medium">Activities</h2>
+          <div className="flex gap-2">
+            <Link
+              to={`/events/${id}/activities/new`}
+              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              + Create Activity
+            </Link>
+          </div>
+        </div>
+
         {activities.length === 0 ? (
           <div className="p-3 border rounded bg-white">No activities.</div>
         ) : (
           <ul className="space-y-2">
             {activities.map((a) => (
-              <li key={a._id} className="p-3 border rounded bg-white">
-                <div className="font-medium">{a.name}</div>
-                {a.description && <div className="text-sm text-gray-600">{a.description}</div>}
-                <div className="text-sm text-gray-500 mt-1">
-                  {a.startTime ? new Date(a.startTime).toLocaleString() : ""}{" "}
-                  {a.endTime ? ` • ${new Date(a.endTime).toLocaleString()}` : ""}
+              <li key={a._id} className="p-3 border rounded bg-white flex justify-between items-start">
+                <div>
+                  <div className="font-medium">{a.name}</div>
+                  {a.description && <div className="text-sm text-gray-600">{a.description}</div>}
+                  <div className="text-sm text-gray-500 mt-1">
+                    {a.startTime ? new Date(a.startTime).toLocaleString() : ""}{" "}
+                    {a.endTime ? ` • ${new Date(a.endTime).toLocaleString()}` : ""}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <Link
+                    to={`/events/${id}/activities/${a._id}/edit`}
+                    className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                  >
+                    Edit
+                  </Link>
+                  <button
+                    onClick={() => deleteActivity(a._id)}
+                    className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                  >
+                    Delete
+                  </button>
                 </div>
               </li>
             ))}
@@ -142,20 +203,56 @@ export default function EventPage() {
       </section>
 
       <section>
-        <h2 className="text-lg font-medium mb-2">Planning steps</h2>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-medium">Planning steps</h2>
+          <div>
+            <Link
+              to={`/events/${id}/planning-steps/new`}
+              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              + Create Step
+            </Link>
+          </div>
+        </div>
+
         {steps.length === 0 ? (
           <div className="p-3 border rounded bg-white">No planning steps.</div>
         ) : (
           <ul className="space-y-2">
             {steps.map((s) => (
-              <li key={s._id} className="p-3 border rounded bg-white">
-                <div className="flex justify-between">
-                  <div>
-                    <div className="font-medium">{s.title}</div>
-                    {s.description && <div className="text-sm text-gray-600">{s.description}</div>}
-                    {s.dueDate && <div className="text-sm text-gray-500 mt-1">Due: {new Date(s.dueDate).toLocaleString()}</div>}
+              <li
+                key={s._id}
+                className={
+                  "p-3 border rounded flex justify-between items-start " +
+                  (s.isCompleted
+                    ? "bg-green-50 border-green-300"
+                    : "bg-white")
+                }
+              >
+                <div>
+                  <div className={"font-medium " + (s.isCompleted ? "text-green-700 line-through" : "")}>
+                    {s.title}
                   </div>
-                  <div className="text-sm">{s.isCompleted ? "Done" : "Pending"}</div>
+                  {s.description && <div className="text-sm text-gray-600">{s.description}</div>}
+                  {s.dueDate && (
+                    <div className="text-sm text-gray-500 mt-1">
+                      Due: {new Date(s.dueDate).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <Link
+                    to={`/events/${id}/planning-steps/${s._id}/edit`}
+                    className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                  >
+                    Edit
+                  </Link>
+                  <button
+                    onClick={() => deleteStep(s._id)}
+                    className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                  >
+                    Delete
+                  </button>
                 </div>
               </li>
             ))}
