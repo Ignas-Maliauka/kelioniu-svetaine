@@ -19,3 +19,6 @@
 node server
 # Run client
 npm run dev
+
+# 1 iteracija notes
+max lenght
