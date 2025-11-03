@@ -19,6 +19,8 @@ export default function Register() {
         else if (!emailRegex.test(form.email)) fe.email = "Enter a valid email";
         if (!form.password) fe.password = "Password is required";
         else if (form.password.length < 6) fe.password = "Password must be at least 6 characters";
+        else if (form.password.length > 20) fe.password = "Password must be at most 20 characters";
+
         setFieldErrors(fe);
         return !fe.name && !fe.email && !fe.password;
     }

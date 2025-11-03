@@ -11,6 +11,8 @@ import Login from "./components/Login";
 import MainPage from "./components/MainPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Account from "./components/Account";
+import EventPage from "./components/EventPage";
+import EventForm from "./components/EventForm";
 import "./index.css";
 
 const router = createBrowserRouter([
@@ -27,6 +29,18 @@ const router = createBrowserRouter([
     element: <App />,
     children: [
       { index: true, element: <ProtectedRoute><Account /></ProtectedRoute> },
+    ],
+  },
+  {
+    path: "/events",
+    element: <App />,
+    children: [
+      // create
+      { path: "new", element: <ProtectedRoute><EventForm /></ProtectedRoute> },
+      // view
+      { path: ":id", element: <ProtectedRoute><EventPage /></ProtectedRoute> },
+      // edit
+      { path: ":id/edit", element: <ProtectedRoute><EventForm /></ProtectedRoute> },
     ],
   },
   // auth routes (not nested under App)
