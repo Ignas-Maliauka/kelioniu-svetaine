@@ -5,6 +5,9 @@ import express from "express";
 import cors from "cors";
 import connectDB from "./db/connection.js";
 import authRoutes from "./routes/auth.js";
+import eventsRoutes from "./routes/events.js";
+import activitiesRoutes from "./routes/activities.js";
+import planningRoutes from "./routes/planningSteps.js";
 
 const app = express();
 app.use(express.json());
@@ -21,6 +24,9 @@ app.use(
 );
 
 app.use("/api/auth", authRoutes);
+app.use("/api/events", eventsRoutes);
+app.use("/api/activities", activitiesRoutes);
+app.use("/api/planning-steps", planningRoutes);
 
 const PORT = process.env.PORT || 5050;
 
