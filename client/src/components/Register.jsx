@@ -15,6 +15,8 @@ export default function Register() {
     function validate() {
         const fe = { name: "", email: "", password: "" };
         if (!form.name || !form.name.trim()) fe.name = "Name is required";
+        else if (form.name.length > 50) fe.name = "Name must be at most 50 characters";
+        else if (form.name.length < 2) fe.name = "Name must be at least 2 characters";
         if (!form.email) fe.email = "Email is required";
         else if (!emailRegex.test(form.email)) fe.email = "Enter a valid email";
         if (!form.password) fe.password = "Password is required";

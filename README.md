@@ -21,4 +21,8 @@ node server
 npm run dev
 
 # 1 iteracija notes
+max lenght del password ir name
+# 2 iteracija
+Puslapiavimas user dashboarde
 max lenght
+autorizacija 3 iteracijai
