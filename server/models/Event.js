@@ -1,35 +1,37 @@
 import mongoose from "mongoose";
 
-const eventSchema = new mongoose.Schema({
-  title: { type: String, required: true, trim: true },
-  description: { type: String, trim: true },
-  startDate: { type: Date },
-  endDate: { type: Date },
-  location: { type: String, trim: true },
-  organiser: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
-  },
-  participants: [
-    {
+const eventSchema = new mongoose.Schema(
+  {
+    title: { type: String, required: true, minlength: 2, maxlength: 50 },
+    description: { type: String, maxlength: 200 },
+    startDate: { type: Date },
+    endDate: { type: Date },
+    location: { type: String, maxlength: 50 },
+    organiser: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: true,
     },
-  ],
-  activities: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Activity",
-    },
-  ],
-  planningSteps: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "PlanningStep",
-    },
-  ],
-  createdAt: { type: Date, default: Date.now },
-}, { timestamps: true });
+    participants: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    activities: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Activity",
+      },
+    ],
+    planningSteps: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "PlanningStep",
+      },
+    ],
+  },
+  { timestamps: true }
+);
 
 export default mongoose.models.Event || mongoose.model("Event", eventSchema);

@@ -53,6 +53,11 @@ export default function EventForm() {
   function validate() {
     const e = {};
     if (!form.title || !form.title.trim()) e.title = "Title is required";
+    else if (form.title.trim().length < 2 || form.title.trim().length > 50) e.title = "Title must be 2-50 characters";
+
+    if (form.description && form.description.length > 200) e.description = "Description too long (max 200)";
+    if (form.location && form.location.length > 50) e.location = "Location too long (max 50)";
+
     if (form.startDate && form.endDate) {
       const s = new Date(form.startDate);
       const eDate = new Date(form.endDate);

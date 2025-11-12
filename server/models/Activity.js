@@ -6,11 +6,11 @@ const activitySchema = new mongoose.Schema({
     ref: "Event",
     required: true,
   },
-  name: { type: String, required: true },
-  description: { type: String },
+  name: { type: String, required: true, minlength: 2, maxlength: 50 },
+  description: { type: String, maxlength: 200 },
   startTime: { type: Date },
   endTime: { type: Date },
-  location: { type: String },
+  location: { type: String, maxlength: 50 },
 });
 
-export default mongoose.model("Activity", activitySchema);
+export default mongoose.models.Activity || mongoose.model("Activity", activitySchema);

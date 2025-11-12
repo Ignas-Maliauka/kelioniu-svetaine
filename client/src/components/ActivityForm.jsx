@@ -52,6 +52,11 @@ export default function ActivityForm() {
   function validate() {
     const e = {};
     if (!form.name || !form.name.trim()) e.name = "Name is required";
+    else if (form.name.trim().length < 2 || form.name.trim().length > 50) e.name = "Name must be 2-50 characters";
+
+    if (form.description && form.description.length > 200) e.description = "Description too long (max 200)";
+    if (form.location && form.location.length > 50) e.location = "Location too long (max 50)";
+
     if (form.startTime && form.endTime && new Date(form.startTime) > new Date(form.endTime)) e.endTime = "End must be after start";
     setErrors(e);
     return Object.keys(e).length === 0;

@@ -50,6 +50,9 @@ export default function PlanningStepForm() {
   function validate() {
     const e = {};
     if (!form.title || !form.title.trim()) e.title = "Title is required";
+    else if (form.title.trim().length < 2 || form.title.trim().length > 50) e.title = "Title must be 2-50 characters";
+
+    if (form.description && form.description.length > 200) e.description = "Description too long (max 200)";
     setErrors(e);
     return Object.keys(e).length === 0;
   }

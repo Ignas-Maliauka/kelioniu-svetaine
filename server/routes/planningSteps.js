@@ -37,6 +37,8 @@ router.post("/", requireAuth, async (req, res) => {
   try {
     const { event, title, description, dueDate, isCompleted } = req.body || {};
     if (!event || !title) return res.status(400).json({ message: "Event and title are required" });
+    if (title.length < 2 || title.length > 50) return res.status(400).json({ message: "Title must be 2-50 characters" });
+    if (description && description.length > 200) return res.status(400).json({ message: "Description too long (max 200)" });
 
     const ok = await userHasAccessToEvent(event, req.userId);
     if (!ok) return res.status(403).json({ message: "Forbidden" });
@@ -78,6 +80,8 @@ router.patch("/:id", requireAuth, async (req, res) => {
 
     const updates = (({ title, description, dueDate, isCompleted }) => ({ title, description, dueDate, isCompleted }))(req.body);
     Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
+    if (updates.title && (updates.title.length < 2 || updates.title.length > 50)) return res.status(400).json({ message: "Title must be 2-50 characters" });
+    if (updates.description && updates.description.length > 200) return res.status(400).json({ message: "Description too long (max 200)" });
 
     const updated = await PlanningStep.findByIdAndUpdate(req.params.id, updates, { new: true });
     res.json(updated);

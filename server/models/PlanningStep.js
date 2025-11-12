@@ -6,10 +6,10 @@ const planningStepSchema = new mongoose.Schema({
     ref: "Event",
     required: true,
   },
-  title: { type: String, required: true },
-  description: { type: String },
+  title: { type: String, required: true, minlength: 2, maxlength: 50 },
+  description: { type: String, maxlength: 200 },
   isCompleted: { type: Boolean, default: false },
   dueDate: { type: Date },
 });
 
-export default mongoose.model("PlanningStep", planningStepSchema);
+export default mongoose.models.PlanningStep || mongoose.model("PlanningStep", planningStepSchema);

@@ -40,6 +40,9 @@ router.post("/", requireAuth, async (req, res) => {
   try {
     const { event, name, description, startTime, endTime, location } = req.body || {};
     if (!event || !name) return res.status(400).json({ message: "Event and name are required" });
+    if (name.length < 2 || name.length > 50) return res.status(400).json({ message: "Name must be 2-50 characters" });
+    if (description && description.length > 200) return res.status(400).json({ message: "Description too long (max 200)" });
+    if (location && location.length > 50) return res.status(400).json({ message: "Location too long (max 50)" });
 
     const ok = await userHasAccessToEvent(event, req.userId);
     if (!ok) return res.status(403).json({ message: "Forbidden" });
@@ -82,6 +85,10 @@ router.patch("/:id", requireAuth, async (req, res) => {
 
     const updates = (({ name, description, startTime, endTime, location }) => ({ name, description, startTime, endTime, location }))(req.body);
     Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
+
+    if (updates.name && (updates.name.length < 2 || updates.name.length > 50)) return res.status(400).json({ message: "Name must be 2-50 characters" });
+    if (updates.description && updates.description.length > 200) return res.status(400).json({ message: "Description too long (max 200)" });
+    if (updates.location && updates.location.length > 50) return res.status(400).json({ message: "Location too long (max 50)" });
 
     const updated = await Activity.findByIdAndUpdate(req.params.id, updates, { new: true });
     res.json(updated);

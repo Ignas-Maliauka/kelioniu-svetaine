@@ -27,6 +27,9 @@ router.post("/", requireAuth, async (req, res) => {
   try {
     const { title, description, startDate, endDate, location, participants = [] } = req.body || {};
     if (!title) return res.status(400).json({ message: "Title is required" });
+    if (title.length < 2 || title.length > 50) return res.status(400).json({ message: "Title must be 2-50 characters long" });
+    if (description && description.length > 200) return res.status(400).json({ message: "Description too long (max 200)" });
+    if (location && location.length > 50) return res.status(400).json({ message: "Location too long (max 50)" });
 
     const ev = await Event.create({
       title,
@@ -75,6 +78,9 @@ router.patch("/:id", requireAuth, async (req, res) => {
 
     const updates = (({ title, description, startDate, endDate, location, participants }) => ({ title, description, startDate, endDate, location, participants }))(req.body);
     Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
+    if (updates.title && (updates.title.length < 2 || updates.title.length > 50)) return res.status(400).json({ message: "Title must be 2-50 characters long" });
+    if (updates.description && updates.description.length > 200) return res.status(400).json({ message: "Description too long (max 200)" });
+    if (updates.location && updates.location.length > 50) return res.status(400).json({ message: "Location too long (max 50)" });
 
     const updated = await Event.findByIdAndUpdate(req.params.id, updates, { new: true }).populate("organiser", "-password").populate("participants", "-password");
     res.json(updated);
