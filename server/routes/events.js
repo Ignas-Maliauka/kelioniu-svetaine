@@ -1,5 +1,6 @@
 import express from "express";
 import Event from "../models/Event.js";
+import User from "../models/User.js";
 import Activity from "../models/Activity.js";
 import PlanningStep from "../models/PlanningStep.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -104,6 +105,60 @@ router.delete("/:id", requireAuth, async (req, res) => {
     res.json({ message: "Event and related data deleted" });
   } catch (err) {
     console.error("DELETE /api/events/:id error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// POST /api/events/:id/participants  - add a single participant (only organiser)
+router.post("/:id/participants", requireAuth, async (req, res) => {
+  try {
+    const { participantId } = req.body || {};
+    if (!participantId) return res.status(400).json({ message: "participantId is required" });
+
+    const ev = await Event.findById(req.params.id);
+    if (!ev) return res.status(404).json({ message: "Event not found" });
+    if (!ev.organiser.equals(req.userId)) return res.status(403).json({ message: "Forbidden" });
+
+    // check user exists
+    const user = await User.findById(participantId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // prevent adding organiser or duplicates
+    if (ev.organiser.equals(participantId)) return res.status(400).json({ message: "Organiser is already part of the event" });
+    if (ev.participants.some((p) => p.equals(participantId))) return res.status(400).json({ message: "User is already a participant" });
+
+    ev.participants.push(participantId);
+    await ev.save();
+
+    const updated = await Event.findById(ev._id).populate("organiser", "-password").populate("participants", "-password");
+    res.status(200).json(updated);
+  } catch (err) {
+    console.error("POST /api/events/:id/participants error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// DELETE /api/events/:id/participants/:pid  - remove a participant (only organiser)
+router.delete("/:id/participants/:pid", requireAuth, async (req, res) => {
+  try {
+    const pid = req.params.pid;
+    const ev = await Event.findById(req.params.id);
+    if (!ev) return res.status(404).json({ message: "Event not found" });
+    if (!ev.organiser.equals(req.userId)) return res.status(403).json({ message: "Forbidden" });
+
+    // cannot remove organiser here
+    if (ev.organiser.equals(pid)) return res.status(400).json({ message: "Cannot remove organiser" });
+
+    const idx = ev.participants.findIndex((p) => p.equals(pid));
+    if (idx === -1) return res.status(404).json({ message: "Participant not found" });
+
+    ev.participants.splice(idx, 1);
+    await ev.save();
+
+    const updated = await Event.findById(ev._id).populate("organiser", "-password").populate("participants", "-password");
+    res.json(updated);
+  } catch (err) {
+    console.error("DELETE /api/events/:id/participants/:pid error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });

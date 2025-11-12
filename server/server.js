@@ -8,6 +8,7 @@ import authRoutes from "./routes/auth.js";
 import eventsRoutes from "./routes/events.js";
 import activitiesRoutes from "./routes/activities.js";
 import planningRoutes from "./routes/planningSteps.js";
+import usersRoutes from "./routes/users.js";
 
 const app = express();
 app.use(express.json());
@@ -27,6 +28,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/events", eventsRoutes);
 app.use("/api/activities", activitiesRoutes);
 app.use("/api/planning-steps", planningRoutes);
+app.use("/api/users", usersRoutes);
 
 const PORT = process.env.PORT || 5050;
 

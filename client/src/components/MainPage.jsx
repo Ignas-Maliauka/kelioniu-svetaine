@@ -9,6 +9,8 @@ export default function MainPage() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 5;
 
   const userId = user?.id || user?._id;
 
@@ -48,6 +50,25 @@ export default function MainPage() {
       ev?.participants &&
       ev.participants.some((p) => (p._id && p._id === userId) || p === userId)
   ).filter(ev => !organiserEvents.find(o => o._id === ev._id)); // avoid dupes if organiser is also listed as participant
+  // build a single ordered list of "my" events with role metadata so we can paginate
+  const myEvents = events.reduce((acc, ev) => {
+    const isOrganiser = ev?.organiser && ((ev.organiser._id && ev.organiser._id === userId) || ev.organiser === userId);
+    const isParticipant = ev?.participants && ev.participants.some((p) => (p._id && p._id === userId) || p === userId);
+    if (isOrganiser) acc.push({ ...ev, role: "organiser" });
+    else if (isParticipant) acc.push({ ...ev, role: "participant" });
+    return acc;
+  }, []);
+
+  const totalPages = Math.max(1, Math.ceil(myEvents.length / PAGE_SIZE));
+  // ensure currentPage is within bounds
+  const clampedPage = Math.min(Math.max(1, currentPage), totalPages || 1);
+  const startIdx = (clampedPage - 1) * PAGE_SIZE;
+  const currentPageEvents = myEvents.slice(startIdx, startIdx + PAGE_SIZE);
+
+  useEffect(() => {
+    // reset to first page when the set of events changes
+    setCurrentPage(1);
+  }, [events, token]);
 
   if (!token) return <p className="p-4">Please log in to see your events.</p>;
 
@@ -86,45 +107,16 @@ export default function MainPage() {
           </button>
         </div>
       </div>
-
       {loading && <p className="p-2">Loading events...</p>}
       {error && <p className="text-red-600 p-2">{error}</p>}
 
-      {!loading && events.length === 0 && <p className="p-2">No events found.</p>}
+      {!loading && myEvents.length === 0 && <p className="p-2">No events found.</p>}
 
-      {organiserEvents.length > 0 && (
-        <section className="mb-6">
-          <h2 className="text-xl mb-2">Organising</h2>
-          <ul className="space-y-3">
-            {organiserEvents.map((ev) => (
-              <li key={ev._id} className="p-3 border rounded bg-white">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <Link to={`/events/${ev._id}`} className="text-lg font-medium">
-                      {ev.title || "Untitled event"}
-                    </Link>
-                    <div className="text-sm text-gray-600">{ev.description}</div>
-                    <div className="text-sm text-gray-500 mt-1">
-                      {ev.startDate ? `Start: ${new Date(ev.startDate).toLocaleString()}` : ""}
-                      {ev.endDate ? ` • End: ${new Date(ev.endDate).toLocaleString()}` : ""}
-                    </div>
-                  </div>
-                  <div className="text-right text-sm">
-                    <div>Organiser: {ev.organiser?.name || "You"}</div>
-                    <div>{(ev.participants || []).length} participants</div>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {participantEvents.length > 0 && (
+      {!loading && myEvents.length > 0 && (
         <section>
-          <h2 className="text-xl mb-2">Participating</h2>
+          <h2 className="text-xl mb-2">Your events</h2>
           <ul className="space-y-3">
-            {participantEvents.map((ev) => (
+            {currentPageEvents.map((ev) => (
               <li key={ev._id} className="p-3 border rounded bg-white">
                 <div className="flex justify-between items-start">
                   <div>
@@ -138,13 +130,38 @@ export default function MainPage() {
                     </div>
                   </div>
                   <div className="text-right text-sm">
-                    <div>Organiser: {ev.organiser?.name || "—"}</div>
+                    <div className="mb-1">Role: <span className="font-medium">{ev.role === 'organiser' ? 'Organiser' : 'Participant'}</span></div>
+                    <div>Organiser: {ev.organiser?.name || (ev.role === 'organiser' ? 'You' : '—')}</div>
                     <div>{(ev.participants || []).length} participants</div>
                   </div>
                 </div>
               </li>
             ))}
           </ul>
+
+          {/* pagination controls */}
+          <div className="flex items-center justify-between mt-4">
+            <div className="text-sm text-gray-600">Showing {startIdx + 1} - {Math.min(startIdx + PAGE_SIZE, myEvents.length)} of {myEvents.length}</div>
+            <div className="flex gap-2">
+              <button
+                className="px-3 py-1 bg-gray-100 rounded border"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={clampedPage <= 1}
+              >
+                Previous
+              </button>
+              <div className="px-3 py-1 flex items-center border rounded bg-white">
+                Page {clampedPage} of {totalPages}
+              </div>
+              <button
+                className="px-3 py-1 bg-gray-100 rounded border"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={clampedPage >= totalPages}
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </section>
       )}
     </div>
