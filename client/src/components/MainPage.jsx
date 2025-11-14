@@ -133,6 +133,7 @@ export default function MainPage() {
                     <div className="mb-1">Role: <span className="font-medium">{ev.role === 'organiser' ? 'Organiser' : 'Participant'}</span></div>
                     <div>Organiser: {ev.organiser?.name || (ev.role === 'organiser' ? 'You' : '—')}</div>
                     <div>{(ev.participants || []).length} participants</div>
+                    <div className="mt-1 text-sm text-gray-600">{(ev.commentCount || 0)} comments</div>
                   </div>
                 </div>
               </li>

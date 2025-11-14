@@ -10,6 +10,13 @@ export default function EventPage() {
   const [event, setEvent] = useState(null);
   const [activities, setActivities] = useState([]);
   const [steps, setSteps] = useState([]);
+  const [comments, setComments] = useState([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [newComment, setNewComment] = useState("");
+  const [postingComment, setPostingComment] = useState(false);
+  const [commentsPage, setCommentsPage] = useState(1);
+  const [commentsTotal, setCommentsTotal] = useState(0);
+  const COMMENTS_PAGE_SIZE = 5;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [newParticipantId, setNewParticipantId] = useState("");
@@ -44,6 +51,7 @@ export default function EventPage() {
         setEvent(ev);
         setActivities(Array.isArray(acts) ? acts : []);
         setSteps(Array.isArray(stp) ? stp : []);
+        // comments are loaded separately with pagination
       } catch (err) {
         if (err.name !== "AbortError") setError(err.message || "Failed to load");
       } finally {
@@ -55,6 +63,40 @@ export default function EventPage() {
       mounted = false;
     };
   }, [id, token]);
+
+  // load comments with pagination
+  async function loadComments(page = commentsPage) {
+    if (!token) return;
+    setCommentsLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/comments?event=${encodeURIComponent(id)}&limit=${COMMENTS_PAGE_SIZE}&page=${page}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.message || `Failed to load comments (${res.status})`);
+      }
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setComments(data);
+        setCommentsTotal(data.length);
+      } else {
+        setComments(Array.isArray(data.comments) ? data.comments : []);
+        setCommentsTotal(typeof data.total === "number" ? data.total : 0);
+      }
+    } catch (err) {
+      if (err.name !== "AbortError") console.error("loadComments error:", err.message || err);
+    } finally {
+      setCommentsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!token || !id) return;
+    loadComments(commentsPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, token, commentsPage]);
 
   async function deleteActivity(aid) {
     if (!confirm("Delete this activity?")) return;
@@ -116,6 +158,8 @@ export default function EventPage() {
           <Link to="/" className="text-sm text-blue-600 hover:underline">Back</Link>
         </div>
       </div>
+
+      {/* Comments moved to bottom of page */}
 
       <section className="mb-6">
         <h2 className="text-lg font-medium mb-2">Details</h2>
@@ -401,6 +445,118 @@ export default function EventPage() {
             ))}
           </ul>
         )}
+      </section>
+
+      {/* Comments - moved to bottom, newest-first */}
+      <section className="mt-6">
+        <h2 className="text-lg font-medium mb-2">Comments</h2>
+        <div className="p-3 border rounded bg-white mb-3">
+          <textarea className="w-full p-2 border" rows={3} value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Write a comment..." />
+          <div className="flex justify-end mt-2 gap-2">
+            <button
+              className="px-3 py-1 bg-blue-600 text-white rounded"
+              onClick={async () => {
+                  if (!newComment || !newComment.trim()) return alert("Enter a comment");
+                  setPostingComment(true);
+                  try {
+                    const res = await fetch(`${API_BASE}/api/comments`, {
+                      method: "POST",
+                      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                      body: JSON.stringify({ event: id, content: newComment.trim() }),
+                    });
+                    if (!res.ok) {
+                      const d = await res.json().catch(() => ({}));
+                      throw new Error(d.message || "Failed to post comment");
+                    }
+                    // after posting, refresh to page 1 so newest comment is visible
+                    setNewComment("");
+                    // always reload page 1 (in case we're already on page 1)
+                    await loadComments(1);
+                    setCommentsPage(1);
+                  } catch (err) {
+                    alert(err.message || "Failed to post comment");
+                  } finally {
+                    setPostingComment(false);
+                  }
+                }}
+              disabled={postingComment}
+            >
+              {postingComment ? "Posting..." : "Post comment"}
+            </button>
+          </div>
+        </div>
+
+        <div className="p-3 border rounded bg-white">
+          {comments.length === 0 ? (
+            <div className="text-sm text-gray-600">No comments yet.</div>
+          ) : (
+            <>
+              <ul className="space-y-3">
+                {comments.map((c) => (
+                  <li key={c._id} className="p-2 border rounded">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-medium">{c.author?.name || '—'}</div>
+                        <div className="text-sm text-gray-700 mt-1">{c.content}</div>
+                        <div className="text-xs text-gray-500 mt-1">{new Date(c.createdAt).toLocaleString()}</div>
+                      </div>
+                      <div className="text-right">
+                        {(isOrganiser || (c.author && (c.author._id === currentUserId || c.author === currentUserId))) && (
+                          <button
+                            className="px-2 py-1 bg-red-600 text-white rounded text-xs"
+                            onClick={async () => {
+                              if (!confirm("Delete this comment?")) return;
+                              try {
+                                const res = await fetch(`${API_BASE}/api/comments/${c._id}`, {
+                                  method: "DELETE",
+                                  headers: { Authorization: `Bearer ${token}` },
+                                });
+                                if (!res.ok) {
+                                  const d = await res.json().catch(() => ({}));
+                                  throw new Error(d.message || "Delete failed");
+                                }
+                                // refresh current comments page
+                                loadComments(commentsPage);
+                              } catch (err) {
+                                alert(err.message || "Delete failed");
+                              }
+                            }}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              {/* pagination controls for comments */}
+              <div className="flex items-center justify-between mt-3 text-sm text-gray-600">
+                <div>
+                  Showing {comments.length === 0 ? 0 : (commentsPage - 1) * COMMENTS_PAGE_SIZE + 1} - {(commentsPage - 1) * COMMENTS_PAGE_SIZE + comments.length} of {commentsTotal}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    className="px-3 py-1 bg-gray-100 rounded border"
+                    onClick={() => setCommentsPage((p) => Math.max(1, p - 1))}
+                    disabled={commentsPage <= 1 || commentsLoading}
+                  >
+                    Previous
+                  </button>
+                  <div className="px-3 py-1 flex items-center border rounded bg-white">Page {commentsPage} of {Math.max(1, Math.ceil(commentsTotal / COMMENTS_PAGE_SIZE))}</div>
+                  <button
+                    className="px-3 py-1 bg-gray-100 rounded border"
+                    onClick={() => setCommentsPage((p) => Math.min(Math.max(1, Math.ceil(commentsTotal / COMMENTS_PAGE_SIZE)), p + 1))}
+                    disabled={commentsPage >= Math.max(1, Math.ceil(commentsTotal / COMMENTS_PAGE_SIZE)) || commentsLoading}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </section>
     </div>
   );

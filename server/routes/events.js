@@ -3,6 +3,7 @@ import Event from "../models/Event.js";
 import User from "../models/User.js";
 import Activity from "../models/Activity.js";
 import PlanningStep from "../models/PlanningStep.js";
+import Comment from "../models/Comment.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -16,7 +17,26 @@ router.get("/", requireAuth, async (req, res) => {
       .sort({ createdAt: -1 })
       .populate("organiser", "-password")
       .populate("participants", "-password");
-    res.json(events);
+    // attach comment counts per event to avoid extra client requests
+    try {
+      const ids = events.map((e) => e._id);
+      const counts = await Comment.aggregate([
+        { $match: { event: { $in: ids } } },
+        { $group: { _id: "$event", count: { $sum: 1 } } },
+      ]);
+      const map = {};
+      counts.forEach((c) => (map[c._id.toString()] = c.count));
+      const out = events.map((e) => {
+        const obj = e.toObject ? e.toObject() : e;
+        obj.commentCount = map[e._id.toString()] || 0;
+        return obj;
+      });
+      res.json(out);
+    } catch (err) {
+      // if comment aggregation fails, still return events without counts
+      console.error("Failed to aggregate comment counts:", err);
+      res.json(events);
+    }
   } catch (err) {
     console.error("GET /api/events error:", err);
     res.status(500).json({ message: "Server error" });
