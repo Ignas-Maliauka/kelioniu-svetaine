@@ -10,6 +10,15 @@ const activitySchema = new mongoose.Schema({
   description: { type: String, maxlength: 200 },
   startTime: { type: Date },
   endTime: { type: Date },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
+  updatedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+  },
   location: { type: String, maxlength: 50 },
 });
 

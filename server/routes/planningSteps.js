@@ -24,7 +24,11 @@ router.get("/", requireAuth, async (req, res) => {
       filter.event = { $in: evs.map(e => e._id) };
     }
 
-    const steps = await PlanningStep.find(filter).sort({ dueDate: 1 });
+    const steps = await PlanningStep.find(filter)
+      .sort({ dueDate: 1 })
+      .populate("createdBy", "-password")
+      .populate("updatedBy", "-password")
+      .populate("completedBy", "-password");
     res.json(steps);
   } catch (err) {
     console.error("GET /api/planning-steps error:", err);
@@ -43,10 +47,20 @@ router.post("/", requireAuth, async (req, res) => {
     const ok = await userHasAccessToEvent(event, req.userId);
     if (!ok) return res.status(403).json({ message: "Forbidden" });
 
-    const step = await PlanningStep.create({ event, title, description, dueDate, isCompleted });
+    const payload = { event, title, description, dueDate, isCompleted, createdBy: req.userId, updatedBy: req.userId };
+    if(req.body.isCompleted === true) {payload.completedBy = req.userId;}
+    else{
+      payload.completedBy = undefined;
+    }
+
+    const step = await PlanningStep.create(payload);
     await Event.findByIdAndUpdate(event, { $push: { planningSteps: step._id } });
 
-    res.status(201).json(step);
+    const populated = await PlanningStep.findById(step._id)
+      .populate("createdBy", "-password")
+      .populate("updatedBy", "-password")
+      .populate("completedBy", "-password");
+    res.status(201).json(populated);
   } catch (err) {
     console.error("POST /api/planning-steps error:", err);
     res.status(500).json({ message: "Server error" });
@@ -56,7 +70,10 @@ router.post("/", requireAuth, async (req, res) => {
 // GET /api/planning-steps/:id
 router.get("/:id", requireAuth, async (req, res) => {
   try {
-    const step = await PlanningStep.findById(req.params.id);
+    const step = await PlanningStep.findById(req.params.id)
+      .populate("createdBy", "-password")
+      .populate("updatedBy", "-password")
+      .populate("completedBy", "-password");
     if (!step) return res.status(404).json({ message: "Planning step not found" });
 
     const ok = await userHasAccessToEvent(step.event, req.userId);
@@ -78,13 +95,22 @@ router.patch("/:id", requireAuth, async (req, res) => {
     const ok = await userHasAccessToEvent(step.event, req.userId);
     if (!ok) return res.status(403).json({ message: "Forbidden" });
 
-    const updates = (({ title, description, dueDate, isCompleted }) => ({ title, description, dueDate, isCompleted }))(req.body);
+    const updates = (({ title, description, dueDate, isCompleted, updatedBy }) => ({ title, description, dueDate, isCompleted, updatedBy }))(req.body);
     Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
     if (updates.title && (updates.title.length < 2 || updates.title.length > 50)) return res.status(400).json({ message: "Title must be 2-50 characters" });
     if (updates.description && updates.description.length > 200) return res.status(400).json({ message: "Description too long (max 200)" });
 
+    // if completedBy provided in payload, allow update
+   if(req.body.isCompleted === true) {updates.completedBy = req.userId;}
+    else{
+      updates.completedBy = undefined;
+    }
     const updated = await PlanningStep.findByIdAndUpdate(req.params.id, updates, { new: true });
-    res.json(updated);
+    const populated = await PlanningStep.findById(updated._id)
+      .populate("createdBy", "-password")
+      .populate("updatedBy", "-password")
+      .populate("completedBy", "-password");
+    res.json(populated);
   } catch (err) {
     console.error("PATCH /api/planning-steps/:id error:", err);
     res.status(500).json({ message: "Server error" });

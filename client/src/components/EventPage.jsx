@@ -333,6 +333,7 @@ export default function EventPage() {
                   >
                     Delete
                   </button>
+                  <p>Last updated by: {a.updatedBy?.name || '—'}</p>
                 </div>
               </li>
             ))}
@@ -391,6 +392,10 @@ export default function EventPage() {
                   >
                     Delete
                   </button>
+                  {s.isCompleted ? (
+                    <p>Completed by: {s.completedBy?.name || '—'}</p>
+                  ) : (<p>Last updated by: {s.updatedBy?.name || '—'}</p>
+                  )}
                 </div>
               </li>
             ))}

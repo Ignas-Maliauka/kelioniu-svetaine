@@ -27,7 +27,10 @@ router.get("/", requireAuth, async (req, res) => {
       filter.event = { $in: evs.map(e => e._id) };
     }
 
-    const activities = await Activity.find(filter).sort({ startTime: 1 });
+    const activities = await Activity.find(filter)
+      .sort({ startTime: 1 })
+      .populate("createdBy", "-password")
+      .populate("updatedBy", "-password");
     res.json(activities);
   } catch (err) {
     console.error("GET /api/activities error:", err);
@@ -47,11 +50,12 @@ router.post("/", requireAuth, async (req, res) => {
     const ok = await userHasAccessToEvent(event, req.userId);
     if (!ok) return res.status(403).json({ message: "Forbidden" });
 
-    const act = await Activity.create({ event, name, description, startTime, endTime, location });
-    // optionally add to Event.activities array
-    await Event.findByIdAndUpdate(event, { $push: { activities: act._id } });
+  const act = await Activity.create({ event, name, description, startTime, endTime, location, createdBy: req.userId, updatedBy: req.userId });
+  // optionally add to Event.activities array
+  await Event.findByIdAndUpdate(event, { $push: { activities: act._id } });
 
-    res.status(201).json(act);
+  const populated = await Activity.findById(act._id).populate("createdBy", "-password").populate("updatedBy", "-password");
+  res.status(201).json(populated);
   } catch (err) {
     console.error("POST /api/activities error:", err);
     res.status(500).json({ message: "Server error" });
@@ -61,7 +65,7 @@ router.post("/", requireAuth, async (req, res) => {
 // GET /api/activities/:id
 router.get("/:id", requireAuth, async (req, res) => {
   try {
-    const act = await Activity.findById(req.params.id);
+  const act = await Activity.findById(req.params.id).populate("createdBy", "-password").populate("updatedBy", "-password");
     if (!act) return res.status(404).json({ message: "Activity not found" });
 
     const ok = await userHasAccessToEvent(act.event, req.userId);
@@ -83,15 +87,16 @@ router.patch("/:id", requireAuth, async (req, res) => {
     const ok = await userHasAccessToEvent(act.event, req.userId);
     if (!ok) return res.status(403).json({ message: "Forbidden" });
 
-    const updates = (({ name, description, startTime, endTime, location }) => ({ name, description, startTime, endTime, location }))(req.body);
+    const updates = (({ name, description, startTime, endTime, location, updatedBy }) => ({ name, description, startTime, endTime, location, updatedBy }))(req.body);
     Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
 
     if (updates.name && (updates.name.length < 2 || updates.name.length > 50)) return res.status(400).json({ message: "Name must be 2-50 characters" });
     if (updates.description && updates.description.length > 200) return res.status(400).json({ message: "Description too long (max 200)" });
     if (updates.location && updates.location.length > 50) return res.status(400).json({ message: "Location too long (max 50)" });
 
-    const updated = await Activity.findByIdAndUpdate(req.params.id, updates, { new: true });
-    res.json(updated);
+  const updated = await Activity.findByIdAndUpdate(req.params.id, updates, { new: true });
+  const populated = await Activity.findById(updated._id).populate("createdBy", "-password").populate("updatedBy", "-password");
+  res.json(populated);
   } catch (err) {
     console.error("PATCH /api/activities/:id error:", err);
     res.status(500).json({ message: "Server error" });
