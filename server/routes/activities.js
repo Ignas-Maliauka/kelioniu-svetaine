@@ -5,9 +5,15 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// Helper: verify user has access to event (organiser or participant)
-async function userHasAccessToEvent(eventId, userId) {
-  const ev = await Event.findOne({ _id: eventId, $or: [{ organiser: userId }, { participants: userId }] });
+// Helper: read access allows organiser, organisers or participants
+async function userHasReadAccessToEvent(eventId, userId) {
+  const ev = await Event.findOne({ _id: eventId, $or: [{ organiser: userId }, { organisers: userId }, { participants: userId }] });
+  return !!ev;
+}
+
+// write access (create/update/delete) requires organiser or promoted organisers
+async function userHasWriteAccessToEvent(eventId, userId) {
+  const ev = await Event.findOne({ _id: eventId, $or: [{ organiser: userId }, { organisers: userId }] });
   return !!ev;
 }
 
@@ -17,13 +23,12 @@ router.get("/", requireAuth, async (req, res) => {
     const { event } = req.query;
     const filter = {};
     if (event) {
-      const ok = await userHasAccessToEvent(event, req.userId);
+      const ok = await userHasReadAccessToEvent(event, req.userId);
       if (!ok) return res.status(403).json({ message: "Forbidden" });
       filter.event = event;
     } else {
-      // return activities for events the user is part of
-      // find events first
-      const evs = await Event.find({ $or: [{ organiser: req.userId }, { participants: req.userId }] }).select("_id");
+      // return activities for events where user is organiser or participant
+      const evs = await Event.find({ $or: [{ organiser: req.userId }, { organisers: req.userId }, { participants: req.userId }] }).select("_id");
       filter.event = { $in: evs.map(e => e._id) };
     }
 
@@ -47,7 +52,7 @@ router.post("/", requireAuth, async (req, res) => {
     if (description && description.length > 200) return res.status(400).json({ message: "Description too long (max 200)" });
     if (location && location.length > 50) return res.status(400).json({ message: "Location too long (max 50)" });
 
-    const ok = await userHasAccessToEvent(event, req.userId);
+    const ok = await userHasWriteAccessToEvent(event, req.userId);
     if (!ok) return res.status(403).json({ message: "Forbidden" });
 
   const act = await Activity.create({ event, name, description, startTime, endTime, location, createdBy: req.userId, updatedBy: req.userId });
@@ -68,7 +73,7 @@ router.get("/:id", requireAuth, async (req, res) => {
   const act = await Activity.findById(req.params.id).populate("createdBy", "-password").populate("updatedBy", "-password");
     if (!act) return res.status(404).json({ message: "Activity not found" });
 
-    const ok = await userHasAccessToEvent(act.event, req.userId);
+    const ok = await userHasReadAccessToEvent(act.event, req.userId);
     if (!ok) return res.status(403).json({ message: "Forbidden" });
 
     res.json(act);
@@ -84,7 +89,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
     const act = await Activity.findById(req.params.id);
     if (!act) return res.status(404).json({ message: "Activity not found" });
 
-    const ok = await userHasAccessToEvent(act.event, req.userId);
+    const ok = await userHasWriteAccessToEvent(act.event, req.userId);
     if (!ok) return res.status(403).json({ message: "Forbidden" });
 
     const updates = (({ name, description, startTime, endTime, location, updatedBy }) => ({ name, description, startTime, endTime, location, updatedBy }))(req.body);
@@ -109,7 +114,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
     const act = await Activity.findById(req.params.id);
     if (!act) return res.status(404).json({ message: "Activity not found" });
 
-    const ok = await userHasAccessToEvent(act.event, req.userId);
+    const ok = await userHasWriteAccessToEvent(act.event, req.userId);
     if (!ok) return res.status(403).json({ message: "Forbidden" });
 
     await Activity.findByIdAndDelete(req.params.id);

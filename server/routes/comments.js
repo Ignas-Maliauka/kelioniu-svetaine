@@ -5,8 +5,15 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
-async function userHasAccessToEvent(eventId, userId) {
-  const ev = await Event.findOne({ _id: eventId, $or: [{ organiser: userId }, { participants: userId }] });
+// read access: organisers, owner or participants may view comments
+async function userHasReadAccessToEvent(eventId, userId) {
+  const ev = await Event.findOne({ _id: eventId, $or: [{ organiser: userId }, { organisers: userId }, { participants: userId }] });
+  return !!ev;
+}
+
+// write access: only organisers (including owner) may create comments
+async function userHasWriteAccessToEvent(eventId, userId) {
+  const ev = await Event.findOne({ _id: eventId, $or: [{ organiser: userId }, { organisers: userId }] });
   return !!ev;
 }
 
@@ -15,7 +22,7 @@ router.get("/", requireAuth, async (req, res) => {
   try {
     const { event } = req.query;
     if (!event) return res.status(400).json({ message: "Event id is required" });
-    const ok = await userHasAccessToEvent(event, req.userId);
+    const ok = await userHasReadAccessToEvent(event, req.userId);
     if (!ok) return res.status(403).json({ message: "Forbidden" });
 
     // pagination support: ?page=1&limit=5
@@ -50,7 +57,7 @@ router.post("/", requireAuth, async (req, res) => {
     if (!event || !content) return res.status(400).json({ message: "Event and content are required" });
     if (typeof content !== "string" || content.trim().length === 0) return res.status(400).json({ message: "Content is required" });
 
-    const ok = await userHasAccessToEvent(event, req.userId);
+    const ok = await userHasWriteAccessToEvent(event, req.userId);
     if (!ok) return res.status(403).json({ message: "Forbidden" });
 
     const comment = await Comment.create({ event, author: req.userId, content: content.trim() });
@@ -72,8 +79,9 @@ router.delete("/:id", requireAuth, async (req, res) => {
     if (!ev) return res.status(404).json({ message: "Event not found" });
 
     const isAuthor = c.author.equals(req.userId);
-    const isOrganiser = ev.organiser.equals(req.userId);
-    if (!isAuthor && !isOrganiser) return res.status(403).json({ message: "Forbidden" });
+    // only the event owner (ev.organiser) may delete others' comments
+    const isOwner = ev.organiser.equals(req.userId);
+    if (!isAuthor && !isOwner) return res.status(403).json({ message: "Forbidden" });
 
     await c.deleteOne();
     res.json({ message: "Comment deleted" });

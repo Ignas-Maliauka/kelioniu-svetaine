@@ -43,16 +43,16 @@ export default function MainPage() {
 
   const organiserEvents = events.filter(
     (ev) =>
-      ev?.organiser && ((ev.organiser._id && ev.organiser._id === userId) || ev.organiser === userId)
+      ev?.organiser && ((ev.organiser._id && ev.organiser._id === userId) || ev.organiser === userId) ||
+      (ev?.organisers && ev.organisers.some((o) => (o._id ? o._id === userId : o === userId)))
   );
   const participantEvents = events.filter(
     (ev) =>
-      ev?.participants &&
-      ev.participants.some((p) => (p._id && p._id === userId) || p === userId)
+      ev?.participants && ev.participants.some((p) => (p._id && p._id === userId) || p === userId)
   ).filter(ev => !organiserEvents.find(o => o._id === ev._id)); // avoid dupes if organiser is also listed as participant
   // build a single ordered list of "my" events with role metadata so we can paginate
   const myEvents = events.reduce((acc, ev) => {
-    const isOrganiser = ev?.organiser && ((ev.organiser._id && ev.organiser._id === userId) || ev.organiser === userId);
+    const isOrganiser = ev?.organiser && ((ev.organiser._id && ev.organiser._id === userId) || ev.organiser === userId) || (ev?.organisers && ev.organisers.some((o) => (o._id ? o._id === userId : o === userId)));
     const isParticipant = ev?.participants && ev.participants.some((p) => (p._id && p._id === userId) || p === userId);
     if (isOrganiser) acc.push({ ...ev, role: "organiser" });
     else if (isParticipant) acc.push({ ...ev, role: "participant" });

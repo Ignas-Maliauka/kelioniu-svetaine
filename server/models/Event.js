@@ -18,6 +18,12 @@ const eventSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
+    organisers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     activities: [
       {
         type: mongoose.Schema.Types.ObjectId,

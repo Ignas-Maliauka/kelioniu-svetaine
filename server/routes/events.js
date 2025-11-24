@@ -12,11 +12,12 @@ const router = express.Router();
 router.get("/", requireAuth, async (req, res) => {
   try {
     const events = await Event.find({
-      $or: [{ organiser: req.userId }, { participants: req.userId }],
+      $or: [{ organiser: req.userId }, { participants: req.userId }, { organisers: req.userId }],
     })
       .sort({ createdAt: -1 })
       .populate("organiser", "-password")
-      .populate("participants", "-password");
+      .populate("participants", "-password")
+      .populate("organisers", "-password");
     // attach comment counts per event to avoid extra client requests
     try {
       const ids = events.map((e) => e._id);
@@ -60,9 +61,10 @@ router.post("/", requireAuth, async (req, res) => {
       location,
       organiser: req.userId,
       participants,
+      organisers: [req.userId], // owner starts as first organiser
     });
 
-    const populated = await Event.findById(ev._id).populate("organiser", "-password").populate("participants", "-password");
+    const populated = await Event.findById(ev._id).populate("organiser", "-password").populate("participants", "-password").populate("organisers", "-password");
     res.status(201).json(populated);
   } catch (err) {
     console.error("POST /api/events error:", err);
@@ -75,10 +77,11 @@ router.get("/:id", requireAuth, async (req, res) => {
   try {
     const ev = await Event.findOne({
       _id: req.params.id,
-      $or: [{ organiser: req.userId }, { participants: req.userId }],
+      $or: [{ organiser: req.userId }, { participants: req.userId }, { organisers: req.userId }],
     })
       .populate("organiser", "-password")
       .populate("participants", "-password")
+      .populate("organisers", "-password")
       .populate("activities")
       .populate("planningSteps");
 
@@ -95,7 +98,9 @@ router.patch("/:id", requireAuth, async (req, res) => {
   try {
     const ev = await Event.findById(req.params.id);
     if (!ev) return res.status(404).json({ message: "Event not found" });
-    if (!ev.organiser.equals(req.userId)) return res.status(403).json({ message: "Forbidden" });
+    // allow any organiser (including owner) to update event
+    const isOrganiser = ev.organiser.equals(req.userId) || (Array.isArray(ev.organisers) && ev.organisers.some((o) => o.equals(req.userId)));
+    if (!isOrganiser) return res.status(403).json({ message: "Forbidden" });
 
     const updates = (({ title, description, startDate, endDate, location, participants }) => ({ title, description, startDate, endDate, location, participants }))(req.body);
     Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
@@ -103,7 +108,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
     if (updates.description && updates.description.length > 200) return res.status(400).json({ message: "Description too long (max 200)" });
     if (updates.location && updates.location.length > 50) return res.status(400).json({ message: "Location too long (max 50)" });
 
-    const updated = await Event.findByIdAndUpdate(req.params.id, updates, { new: true }).populate("organiser", "-password").populate("participants", "-password");
+    const updated = await Event.findByIdAndUpdate(req.params.id, updates, { new: true }).populate("organiser", "-password").populate("participants", "-password").populate("organisers", "-password");
     res.json(updated);
   } catch (err) {
     console.error("PATCH /api/events/:id error:", err);
@@ -116,6 +121,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
   try {
     const ev = await Event.findById(req.params.id);
     if (!ev) return res.status(404).json({ message: "Event not found" });
+    // only owner (original organiser) may delete the event
     if (!ev.organiser.equals(req.userId)) return res.status(403).json({ message: "Forbidden" });
 
     await Activity.deleteMany({ event: ev._id });
@@ -137,6 +143,7 @@ router.post("/:id/participants", requireAuth, async (req, res) => {
 
     const ev = await Event.findById(req.params.id);
     if (!ev) return res.status(404).json({ message: "Event not found" });
+    // only owner may add participants
     if (!ev.organiser.equals(req.userId)) return res.status(403).json({ message: "Forbidden" });
 
     // check user exists
@@ -150,7 +157,7 @@ router.post("/:id/participants", requireAuth, async (req, res) => {
     ev.participants.push(participantId);
     await ev.save();
 
-    const updated = await Event.findById(ev._id).populate("organiser", "-password").populate("participants", "-password");
+    const updated = await Event.findById(ev._id).populate("organiser", "-password").populate("participants", "-password").populate("organisers", "-password");
     res.status(200).json(updated);
   } catch (err) {
     console.error("POST /api/events/:id/participants error:", err);
@@ -164,6 +171,7 @@ router.delete("/:id/participants/:pid", requireAuth, async (req, res) => {
     const pid = req.params.pid;
     const ev = await Event.findById(req.params.id);
     if (!ev) return res.status(404).json({ message: "Event not found" });
+    // only owner may remove participants
     if (!ev.organiser.equals(req.userId)) return res.status(403).json({ message: "Forbidden" });
 
     // cannot remove organiser here
@@ -175,10 +183,66 @@ router.delete("/:id/participants/:pid", requireAuth, async (req, res) => {
     ev.participants.splice(idx, 1);
     await ev.save();
 
-    const updated = await Event.findById(ev._id).populate("organiser", "-password").populate("participants", "-password");
+    const updated = await Event.findById(ev._id).populate("organiser", "-password").populate("participants", "-password").populate("organisers", "-password");
     res.json(updated);
   } catch (err) {
     console.error("DELETE /api/events/:id/participants/:pid error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// POST /api/events/:id/organisers - promote a participant to organiser (owner only)
+router.post("/:id/organisers", requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.body || {};
+    if (!userId) return res.status(400).json({ message: "userId is required" });
+
+    const ev = await Event.findById(req.params.id);
+    if (!ev) return res.status(404).json({ message: "Event not found" });
+    if (!ev.organiser.equals(req.userId)) return res.status(403).json({ message: "Forbidden" });
+
+    // check user exists
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // initialize organisers array if missing
+    ev.organisers = ev.organisers || [];
+    if (ev.organisers.some((o) => o.equals(userId))) return res.status(400).json({ message: "User is already an organiser" });
+
+    // remove from participants (we treat role as mutually exclusive)
+    ev.participants = (ev.participants || []).filter((p) => !p.equals(userId));
+
+    ev.organisers.push(userId);
+    await ev.save();
+
+    const updated = await Event.findById(ev._id).populate("organiser", "-password").populate("participants", "-password").populate("organisers", "-password");
+    res.status(200).json(updated);
+  } catch (err) {
+    console.error("POST /api/events/:id/organisers error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// DELETE /api/events/:id/organisers/:uid - demote an organiser back to participant (owner only)
+router.delete("/:id/organisers/:uid", requireAuth, async (req, res) => {
+  try {
+    const uid = req.params.uid;
+    const ev = await Event.findById(req.params.id);
+    if (!ev) return res.status(404).json({ message: "Event not found" });
+    if (!ev.organiser.equals(req.userId)) return res.status(403).json({ message: "Forbidden" });
+
+    // cannot remove owner
+    if (ev.organiser.equals(uid)) return res.status(400).json({ message: "Cannot remove owner" });
+    ev.organisers = (ev.organisers || []).filter((o) => !o.equals(uid));
+    // ensure demoted user is a participant
+    ev.participants = ev.participants || [];
+    if (!ev.participants.some((p) => p.equals(uid))) ev.participants.push(uid);
+    await ev.save();
+
+    const updated = await Event.findById(ev._id).populate("organiser", "-password").populate("participants", "-password").populate("organisers", "-password");
+    res.json(updated);
+  } catch (err) {
+    console.error("DELETE /api/events/:id/organisers/:uid error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });

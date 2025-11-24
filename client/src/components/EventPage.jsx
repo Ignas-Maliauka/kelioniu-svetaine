@@ -138,10 +138,8 @@ export default function EventPage() {
   if (!event) return <p className="p-4">Event not found.</p>;
 
   const currentUserId = user?.id || user?._id;
-  const isOrganiser =
-    event.organiser &&
-    ((event.organiser._id && event.organiser._id === currentUserId) ||
-      event.organiser === currentUserId);
+  const isOwner = event.organiser && ((event.organiser._id && event.organiser._id === currentUserId) || event.organiser === currentUserId);
+  const isOrganiser = isOwner || (Array.isArray(event.organisers) && event.organisers.some((o) => (o._id ? o._id === currentUserId : o === currentUserId)));
 
   return (
     <div className="p-4">
@@ -164,39 +162,41 @@ export default function EventPage() {
       <section className="mb-6">
         <h2 className="text-lg font-medium mb-2">Details</h2>
         <div className="p-3 border rounded bg-white">
-          <div className="text-sm">Organiser: {event.organiser?.name || "—"}</div>
+          <div className="text-sm">Owner: {event.organiser?.name || "—"}</div>
           <div className="text-sm">Participants: {(event.participants || []).length}</div>
-          {(event.participants || []).length > 0 && (
+          <div className="text-sm mt-1">Organisers: {(event.organisers || []).length}</div>
+          {(event.organisers || []).length > 0 && (
             <div className="mt-2">
               <ul className="space-y-1">
-                {(event.participants || []).map((p) => {
-                  const pid = p._id || p;
-                  const display = typeof p === 'string' ? pid : `${p.name} ${p.email ? `• ${p.email}` : ''}`;
+                {(event.organisers || []).map((o) => {
+                  const oid = o._id || o;
+                  const display = typeof o === 'string' ? oid : `${o.name} ${o.email ? `• ${o.email}` : ''}`;
+                  const roleLabel = (event.organiser && ((event.organiser._id || event.organiser) == oid)) ? 'owner' : 'organiser';
                   return (
-                    <li key={pid} className="flex items-center justify-between text-sm text-gray-700">
-                      <span>{display}</span>
-                      {isOrganiser && (
+                    <li key={oid} className="flex items-center justify-between text-sm text-gray-700">
+                      <span>{display} <span className="text-xs text-gray-500">({roleLabel})</span></span>
+                      {isOwner && roleLabel !== 'owner' && (
                         <button
                           className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs"
                           onClick={async () => {
-                            if (!confirm(`Remove ${typeof p === 'string' ? pid : p.name} from event?`)) return;
+                            if (!confirm(`Demote ${typeof o === 'string' ? oid : o.name} from organiser?`)) return;
                             try {
-                              const res = await fetch(`${API_BASE}/api/events/${id}/participants/${encodeURIComponent(pid)}`, {
-                                method: "DELETE",
+                              const res = await fetch(`${API_BASE}/api/events/${id}/organisers/${encodeURIComponent(oid)}`, {
+                                method: 'DELETE',
                                 headers: { Authorization: `Bearer ${token}` },
                               });
                               if (!res.ok) {
                                 const d = await res.json().catch(() => ({}));
-                                throw new Error(d.message || "Failed to remove participant");
+                                throw new Error(d.message || 'Failed to demote organiser');
                               }
                               const updated = await res.json();
                               setEvent(updated);
                             } catch (err) {
-                              alert(err.message || "Failed to remove participant");
+                              alert(err.message || 'Failed to demote organiser');
                             }
                           }}
                         >
-                          Remove
+                          Demote
                         </button>
                       )}
                     </li>
@@ -205,149 +205,227 @@ export default function EventPage() {
               </ul>
             </div>
           )}
-          {isOrganiser && (
+          {(event.participants || []).length > 0 && (
             <div className="mt-2">
+              <ul className="space-y-1">
+                {((event.participants || []).filter((p) => {
+                  const pid = p._id || p;
+                  // filter out organisers to avoid duplicates
+                  const orgIds = (event.organisers || []).map((o) => (o._id ? o._id : o));
+                  return !orgIds.includes(pid);
+                })).map((p) => {
+                  const pid = p._id || p;
+                  const display = typeof p === 'string' ? pid : `${p.name} ${p.email ? `• ${p.email}` : ''}`;
+                  return (
+                    <li key={pid} className="flex items-center justify-between text-sm text-gray-700">
+                      <span>{display} <span className="text-xs text-gray-500">(participant)</span></span>
+                      <div className="flex gap-2">
+                        {isOwner && (
+                          <button
+                            className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs"
+                            onClick={async () => {
+                              if (!confirm(`Remove ${typeof p === 'string' ? pid : p.name} from event?`)) return;
+                              try {
+                                const res = await fetch(`${API_BASE}/api/events/${id}/participants/${encodeURIComponent(pid)}`, {
+                                  method: "DELETE",
+                                  headers: { Authorization: `Bearer ${token}` },
+                                });
+                                if (!res.ok) {
+                                  const d = await res.json().catch(() => ({}));
+                                  throw new Error(d.message || "Failed to remove participant");
+                                }
+                                const updated = await res.json();
+                                setEvent(updated);
+                              } catch (err) {
+                                alert(err.message || "Failed to remove participant");
+                              }
+                            }}
+                          >
+                            Remove
+                          </button>
+                        )}
+                        {isOwner && (
+                          <button
+                            className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
+                            onClick={async () => {
+                              // promote to organiser (owner only)
+                              if (!confirm(`Promote ${typeof p === 'string' ? pid : p.name} to organiser?`)) return;
+                              try {
+                                const res = await fetch(`${API_BASE}/api/events/${id}/organisers`, {
+                                  method: 'POST',
+                                  headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ userId: pid }),
+                                });
+                                if (!res.ok) {
+                                  const d = await res.json().catch(() => ({}));
+                                  throw new Error(d.message || 'Failed to promote');
+                                }
+                                const updated = await res.json();
+                                setEvent(updated);
+                              } catch (err) {
+                                alert(err.message || 'Failed to promote');
+                              }
+                            }}
+                          >
+                            Promote
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+          <div className="mt-2">
+            {isOrganiser && (
               <Link
                 to={`/events/${id}/edit`}
                 className="px-3 py-1 mr-2 bg-green-600 text-white rounded hover:bg-green-700"
               >
                 Edit event
               </Link>
+            )}
 
-              <button
-                className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
-                onClick={() => {
-                  if (!confirm("Delete this event? This will remove related data.")) return;
-                  (async () => {
-                    try {
-                      const res = await fetch(`${API_BASE}/api/events/${id}`, {
-                        method: "DELETE",
-                        headers: { Authorization: `Bearer ${token}` },
-                      });
-                      if (!res.ok) {
-                        const d = await res.json().catch(() => ({}));
-                        throw new Error(d.message || "Delete failed");
-                      }
-                      nav("/");
-                    } catch (err) {
-                      alert(err.message || "Delete failed");
-                    }
-                  })();
-                }}
-              >
-                Delete event
-              </button>
-              {/* Add participant by user name or email (organiser only) */}
-              <div className="mt-3">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="Name or email to add"
-                    value={newParticipantId}
-                    onChange={(e) => setNewParticipantId(e.target.value)}
-                    className="px-2 py-1 border rounded"
-                  />
-                  <button
-                    className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                    onClick={async () => {
-                      if (!newParticipantId) return alert("Enter a name or email to search");
-                      setSearchLoading(true);
-                      setSearchResults(null);
+            {isOwner && (
+              <>
+                <button
+                  className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                  onClick={() => {
+                    if (!confirm("Delete this event? This will remove related data.")) return;
+                    (async () => {
                       try {
-                        const lookupRes = await fetch(`${API_BASE}/api/users/search?q=${encodeURIComponent(newParticipantId)}`, {
+                        const res = await fetch(`${API_BASE}/api/events/${id}`, {
+                          method: "DELETE",
                           headers: { Authorization: `Bearer ${token}` },
                         });
-                        if (!lookupRes.ok) {
-                          const d = await lookupRes.json().catch(() => ({}));
-                          throw new Error(d.message || "User lookup failed");
+                        if (!res.ok) {
+                          const d = await res.json().catch(() => ({}));
+                          throw new Error(d.message || "Delete failed");
                         }
-                        const users = await lookupRes.json();
-                        setSearchResults(Array.isArray(users) ? users : []);
+                        nav("/");
                       } catch (err) {
-                        alert(err.message || "User lookup failed");
-                        setSearchResults([]);
-                      } finally {
-                        setSearchLoading(false);
+                        alert(err.message || "Delete failed");
                       }
-                    }}
-                    disabled={searchLoading}
-                  >
-                    {searchLoading ? "Searching..." : "Search"}
-                  </button>
-                </div>
+                    })();
+                  }}
+                >
+                  Delete event
+                </button>
 
-                {/* show returned users (even if only one or zero) */}
-                {searchResults !== null && (
-                  <div className="mt-2 border rounded bg-white p-2 max-h-48 overflow-auto">
-                    {searchLoading ? (
-                      <div className="text-sm text-gray-600">Searching...</div>
-                    ) : searchResults.length === 0 ? (
-                      <div className="text-sm text-gray-600">No users found.</div>
-                    ) : (
-                      <ul className="space-y-2">
-                        {searchResults.map((u) => (
-                          <li key={u._id} className="flex items-center justify-between p-2 border rounded">
-                            <div>
-                              <div className="font-medium">{u.name}</div>
-                              <div className="text-sm text-gray-600">{u.email}</div>
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                                onClick={async () => {
-                                  const userIdToAdd = u._id;
-                                  // Prevent adding organiser or duplicate
-                                  const existingIds = (event.participants || []).map((p) => p._id || p);
-                                  if (existingIds.includes(userIdToAdd)) return alert("User is already a participant");
-                                  if (event.organiser && ((event.organiser._id && event.organiser._id === userIdToAdd) || event.organiser === userIdToAdd)) return alert("Organiser is already part of the event");
-                                  setAddingParticipant(true);
-                                  try {
-                                    const res = await fetch(`${API_BASE}/api/events/${id}/participants`, {
-                                      method: "POST",
-                                      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-                                      body: JSON.stringify({ participantId: userIdToAdd }),
-                                    });
-                                    if (!res.ok) {
-                                      const d = await res.json().catch(() => ({}));
-                                      throw new Error(d.message || "Failed to add participant");
-                                    }
-                                    const updated = await res.json();
-                                    setEvent(updated);
-                                    setNewParticipantId("");
-                                    setSearchResults(null);
-                                  } catch (err) {
-                                    alert(err.message || "Failed to add participant");
-                                  } finally {
-                                    setAddingParticipant(false);
-                                  }
-                                }}
-                              >
-                                Add
-                              </button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                {/* Add participant by user name or email (owner only) */}
+                <div className="mt-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Name or email to add"
+                      value={newParticipantId}
+                      onChange={(e) => setNewParticipantId(e.target.value)}
+                      className="px-2 py-1 border rounded"
+                    />
+                    <button
+                      className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      onClick={async () => {
+                        if (!newParticipantId) return alert("Enter a name or email to search");
+                        setSearchLoading(true);
+                        setSearchResults(null);
+                        try {
+                          const lookupRes = await fetch(`${API_BASE}/api/users/search?q=${encodeURIComponent(newParticipantId)}`, {
+                            headers: { Authorization: `Bearer ${token}` },
+                          });
+                          if (!lookupRes.ok) {
+                            const d = await lookupRes.json().catch(() => ({}));
+                            throw new Error(d.message || "User lookup failed");
+                          }
+                          const users = await lookupRes.json();
+                          setSearchResults(Array.isArray(users) ? users : []);
+                        } catch (err) {
+                          alert(err.message || "User lookup failed");
+                          setSearchResults([]);
+                        } finally {
+                          setSearchLoading(false);
+                        }
+                      }}
+                      disabled={searchLoading}
+                    >
+                      {searchLoading ? "Searching..." : "Search"}
+                    </button>
                   </div>
-                )}
-              </div>
-            </div>
-          )}
+
+                  {/* show returned users (even if only one or zero) */}
+                  {searchResults !== null && (
+                    <div className="mt-2 border rounded bg-white p-2 max-h-48 overflow-auto">
+                      {searchLoading ? (
+                        <div className="text-sm text-gray-600">Searching...</div>
+                      ) : searchResults.length === 0 ? (
+                        <div className="text-sm text-gray-600">No users found.</div>
+                      ) : (
+                        <ul className="space-y-2">
+                          {searchResults.map((u) => (
+                            <li key={u._id} className="flex items-center justify-between p-2 border rounded">
+                              <div>
+                                <div className="font-medium">{u.name}</div>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                                  onClick={async () => {
+                                    const userIdToAdd = u._id;
+                                    // Prevent adding organiser or duplicate
+                                    const existingIds = (event.participants || []).map((p) => p._id || p);
+                                    if (existingIds.includes(userIdToAdd)) return alert("User is already a participant");
+                                    if (event.organiser && ((event.organiser._id && event.organiser._id === userIdToAdd) || event.organiser === userIdToAdd)) return alert("Organiser is already part of the event");
+                                    setAddingParticipant(true);
+                                    try {
+                                      const res = await fetch(`${API_BASE}/api/events/${id}/participants`, {
+                                        method: "POST",
+                                        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                                        body: JSON.stringify({ participantId: userIdToAdd }),
+                                      });
+                                      if (!res.ok) {
+                                        const d = await res.json().catch(() => ({}));
+                                        throw new Error(d.message || "Failed to add participant");
+                                      }
+                                      const updated = await res.json();
+                                      setEvent(updated);
+                                      setNewParticipantId("");
+                                      setSearchResults(null);
+                                    } catch (err) {
+                                      alert(err.message || "Failed to add participant");
+                                    } finally {
+                                      setAddingParticipant(false);
+                                    }
+                                  }}
+                                >
+                                  Add
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </section>
 
       <section className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-medium">Activities</h2>
-          <div className="flex gap-2">
-            <Link
-              to={`/events/${id}/activities/new`}
-              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              + Create Activity
-            </Link>
-          </div>
+          {isOrganiser && (
+            <div className="flex gap-2">
+              <Link
+                to={`/events/${id}/activities/new`}
+                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                + Create Activity
+              </Link>
+            </div>
+          )}
         </div>
 
         {activities.length === 0 ? (
@@ -365,18 +443,22 @@ export default function EventPage() {
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  <Link
-                    to={`/events/${id}/activities/${a._id}/edit`}
-                    className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-                  >
-                    Edit
-                  </Link>
-                  <button
-                    onClick={() => deleteActivity(a._id)}
-                    className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-                  >
-                    Delete
-                  </button>
+                  {isOrganiser && (
+                    <>
+                      <Link
+                        to={`/events/${id}/activities/${a._id}/edit`}
+                        className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                      >
+                        Edit
+                      </Link>
+                      <button
+                        onClick={() => deleteActivity(a._id)}
+                        className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
                   <p>Last updated by: {a.updatedBy?.name || '—'}</p>
                 </div>
               </li>
@@ -386,16 +468,18 @@ export default function EventPage() {
       </section>
 
       <section>
-        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-medium">Planning steps</h2>
-          <div>
-            <Link
-              to={`/events/${id}/planning-steps/new`}
-              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              + Create Step
-            </Link>
-          </div>
+          {isOrganiser && (
+            <div>
+              <Link
+                to={`/events/${id}/planning-steps/new`}
+                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                + Create Step
+              </Link>
+            </div>
+          )}
         </div>
 
         {steps.length === 0 ? (
@@ -424,18 +508,22 @@ export default function EventPage() {
                   )}
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  <Link
-                    to={`/events/${id}/planning-steps/${s._id}/edit`}
-                    className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-                  >
-                    Edit
-                  </Link>
-                  <button
-                    onClick={() => deleteStep(s._id)}
-                    className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-                  >
-                    Delete
-                  </button>
+                  {isOrganiser && (
+                    <>
+                      <Link
+                        to={`/events/${id}/planning-steps/${s._id}/edit`}
+                        className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                      >
+                        Edit
+                      </Link>
+                      <button
+                        onClick={() => deleteStep(s._id)}
+                        className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
                   {s.isCompleted ? (
                     <p>Completed by: {s.completedBy?.name || '—'}</p>
                   ) : (<p>Last updated by: {s.updatedBy?.name || '—'}</p>
@@ -451,39 +539,45 @@ export default function EventPage() {
       <section className="mt-6">
         <h2 className="text-lg font-medium mb-2">Comments</h2>
         <div className="p-3 border rounded bg-white mb-3">
-          <textarea className="w-full p-2 border" rows={3} value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Write a comment..." />
-          <div className="flex justify-end mt-2 gap-2">
-            <button
-              className="px-3 py-1 bg-blue-600 text-white rounded"
-              onClick={async () => {
-                  if (!newComment || !newComment.trim()) return alert("Enter a comment");
-                  setPostingComment(true);
-                  try {
-                    const res = await fetch(`${API_BASE}/api/comments`, {
-                      method: "POST",
-                      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-                      body: JSON.stringify({ event: id, content: newComment.trim() }),
-                    });
-                    if (!res.ok) {
-                      const d = await res.json().catch(() => ({}));
-                      throw new Error(d.message || "Failed to post comment");
-                    }
-                    // after posting, refresh to page 1 so newest comment is visible
-                    setNewComment("");
-                    // always reload page 1 (in case we're already on page 1)
-                    await loadComments(1);
-                    setCommentsPage(1);
-                  } catch (err) {
-                    alert(err.message || "Failed to post comment");
-                  } finally {
-                    setPostingComment(false);
-                  }
-                }}
-              disabled={postingComment}
-            >
-              {postingComment ? "Posting..." : "Post comment"}
-            </button>
-          </div>
+          {isOrganiser ? (
+            <>
+              <textarea className="w-full p-2 border" rows={3} value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Write a comment..." />
+              <div className="flex justify-end mt-2 gap-2">
+                <button
+                  className="px-3 py-1 bg-blue-600 text-white rounded"
+                  onClick={async () => {
+                      if (!newComment || !newComment.trim()) return alert("Enter a comment");
+                      setPostingComment(true);
+                      try {
+                        const res = await fetch(`${API_BASE}/api/comments`, {
+                          method: "POST",
+                          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                          body: JSON.stringify({ event: id, content: newComment.trim() }),
+                        });
+                        if (!res.ok) {
+                          const d = await res.json().catch(() => ({}));
+                          throw new Error(d.message || "Failed to post comment");
+                        }
+                        // after posting, refresh to page 1 so newest comment is visible
+                        setNewComment("");
+                        // always reload page 1 (in case we're already on page 1)
+                        await loadComments(1);
+                        setCommentsPage(1);
+                      } catch (err) {
+                        alert(err.message || "Failed to post comment");
+                      } finally {
+                        setPostingComment(false);
+                      }
+                    }}
+                  disabled={postingComment}
+                >
+                  {postingComment ? "Posting..." : "Post comment"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="text-sm text-gray-600">Only organisers can post comments.</div>
+          )}
         </div>
 
         <div className="p-3 border rounded bg-white">
@@ -501,7 +595,7 @@ export default function EventPage() {
                         <div className="text-xs text-gray-500 mt-1">{new Date(c.createdAt).toLocaleString()}</div>
                       </div>
                       <div className="text-right">
-                        {(isOrganiser || (c.author && (c.author._id === currentUserId || c.author === currentUserId))) && (
+                        {(isOwner || (c.author && (c.author._id === currentUserId || c.author === currentUserId))) && (
                           <button
                             className="px-2 py-1 bg-red-600 text-white rounded text-xs"
                             onClick={async () => {
