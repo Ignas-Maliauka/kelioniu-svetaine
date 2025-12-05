@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5050";
@@ -20,6 +20,7 @@ export default function EventDetails({
   setSearchLoading,
   setEvent,
 }) {
+  const [friendsLoading, setFriendsLoading] = useState(false);
   return (
     <section className="mb-6">
       <h2 className="text-lg font-medium mb-2">Details</h2>
@@ -212,6 +213,34 @@ export default function EventDetails({
                     disabled={searchLoading}
                   >
                     {searchLoading ? "Searching..." : "Search"}
+                  </button>
+                  <button
+                    className="px-3 py-1 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 ml-2"
+                    onClick={async () => {
+                      // load friends and show them in the same results area
+                      if (!currentUserId) return alert('Current user not available');
+                      setFriendsLoading(true);
+                      setSearchResults(null);
+                      try {
+                        const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(currentUserId)}/friends`, {
+                          headers: { Authorization: `Bearer ${token}` },
+                        });
+                        if (!res.ok) {
+                          const d = await res.json().catch(() => ({}));
+                          throw new Error(d.message || 'Failed to load friends');
+                        }
+                        const friends = await res.json();
+                        setSearchResults(Array.isArray(friends) ? friends : []);
+                      } catch (err) {
+                        alert(err.message || 'Failed to load friends');
+                        setSearchResults([]);
+                      } finally {
+                        setFriendsLoading(false);
+                      }
+                    }}
+                    disabled={friendsLoading}
+                  >
+                    {friendsLoading ? 'Loading...' : 'From friends'}
                   </button>
                 </div>
 

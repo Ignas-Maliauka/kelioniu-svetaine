@@ -13,6 +13,7 @@ export default function Navbar() {
           <NavLink className="px-3 hover:bg-slate-100" to="/">Dashboard</NavLink>
         </div>
         <div className="flex items-center gap-3">
+          <NavLink className="px-3 hover:bg-slate-100" to="/friends">Friends</NavLink>
           <NavLink className="px-3 hover:bg-slate-100" to="/account">Account</NavLink>
           <button onClick={logout} className="px-3 h-9 rounded-md border bg-background hover:bg-slate-100">
             Logout
