@@ -26,3 +26,5 @@ max lenght del password ir name
 Puslapiavimas user dashboarde
 max lenght
 autorizacija 3 iteracijai
+# 3 iteracija
+Events puslapio componetizavimas
