@@ -16,6 +16,7 @@ export default function EventForm() {
     startDate: "",
     endDate: "",
     location: "",
+    state: "planned",
   });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -40,6 +41,7 @@ export default function EventForm() {
           startDate: data.startDate ? new Date(data.startDate).toISOString().slice(0, 16) : "",
           endDate: data.endDate ? new Date(data.endDate).toISOString().slice(0, 16) : "",
           location: data.location || "",
+          state: data.state || "planned",
         });
       } catch (err) {
         setServerError(err.message || "Load error");
@@ -85,6 +87,7 @@ export default function EventForm() {
         startDate: form.startDate ? new Date(form.startDate).toISOString() : undefined,
         endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
         location: form.location.trim() || undefined,
+        state: form.state || undefined,
       };
       const url = isEdit ? `${API_BASE}/api/events/${id}` : `${API_BASE}/api/events`;
       const method = isEdit ? "PATCH" : "POST";
@@ -167,6 +170,20 @@ export default function EventForm() {
             onChange={(e) => updateField("location", e.target.value)}
           />
         </div>
+
+          <div>
+            <label className="block text-sm mb-1">State</label>
+            <select
+              className="w-full p-2 border"
+              value={form.state}
+              onChange={(e) => updateField("state", e.target.value)}
+            >
+              <option value="planned">Planned</option>
+              <option value="ongoing">Ongoing</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
 
         {serverError && <div className="text-sm text-red-600">{serverError}</div>}
 

@@ -7,6 +7,11 @@ const eventSchema = new mongoose.Schema(
     startDate: { type: Date },
     endDate: { type: Date },
     location: { type: String, maxlength: 50 },
+    state: {
+      type: String,
+      enum: ["planned", "ongoing", "completed", "cancelled"],
+      default: "planned",
+    },
     organiser: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

@@ -132,7 +132,13 @@ export default function MainPage() {
                   <div className="text-right text-sm">
                     <div className="mb-1">Role: <span className="font-medium">{ev.role === 'organiser' ? 'Organiser' : 'Participant'}</span></div>
                     <div>Organiser: {ev.organiser?.name || (ev.role === 'organiser' ? 'You' : '—')}</div>
-                    <div>{(ev.participants || []).length} participants</div>
+                    <div className="mt-1">
+                      <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded ${
+                        ev.state === 'ongoing' ? 'bg-green-100 text-green-800' : ev.state === 'completed' ? 'bg-blue-100 text-blue-800' : ev.state === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                      }`}>{ev.state ? (ev.state.charAt(0).toUpperCase() + ev.state.slice(1)) : '—'}</span>
+                    </div>
+                    <div className="mt-1">Steps: <span className="font-medium">{(ev.completedPlanningSteps || 0)}/{(ev.planningStepsCount || 0)}</span></div>
+                    <div className="mt-1">{(ev.participants || []).length} participants</div>
                     <div className="mt-1 text-sm text-gray-600">{(ev.commentCount || 0)} comments</div>
                   </div>
                 </div>

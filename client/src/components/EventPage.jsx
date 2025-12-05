@@ -155,6 +155,11 @@ export default function EventPage() {
             {event.startDate ? `Start: ${new Date(event.startDate).toLocaleString()}` : ""}
             {event.endDate ? ` • End: ${new Date(event.endDate).toLocaleString()}` : ""}
           </div>
+          <div className="text-sm text-gray-700 mt-1">
+            <span className={`inline-flex items-center px-2 py-1 text-sm font-semibold rounded ${
+              event.state === 'ongoing' ? 'bg-green-100 text-green-800' : event.state === 'completed' ? 'bg-blue-100 text-blue-800' : event.state === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+            }`}>{event.state ? (event.state.charAt(0).toUpperCase() + event.state.slice(1)) : '—'}</span>
+          </div>
         </div>
         <div className="text-right">
           <Link to="/" className="text-sm text-blue-600 hover:underline">Back</Link>

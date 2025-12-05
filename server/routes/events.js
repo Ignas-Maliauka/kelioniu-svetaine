@@ -32,7 +32,31 @@ router.get("/", requireAuth, async (req, res) => {
         obj.commentCount = map[e._id.toString()] || 0;
         return obj;
       });
-      res.json(out);
+      // also attach planning step totals and completed counts
+      try {
+        const stepCounts = await PlanningStep.aggregate([
+          { $match: { event: { $in: ids } } },
+          {
+            $group: {
+              _id: "$event",
+              total: { $sum: 1 },
+              completed: { $sum: { $cond: ["$isCompleted", 1, 0] } },
+            },
+          },
+        ]);
+        const stepMap = {};
+        stepCounts.forEach((s) => (stepMap[s._id.toString()] = s));
+        const out2 = out.map((obj) => {
+          const s = stepMap[obj._id.toString()];
+          obj.planningStepsCount = s ? s.total : 0;
+          obj.completedPlanningSteps = s ? s.completed : 0;
+          return obj;
+        });
+        res.json(out2);
+      } catch (err) {
+        console.error("Failed to aggregate planning step counts:", err);
+        res.json(out);
+      }
     } catch (err) {
       // if comment aggregation fails, still return events without counts
       console.error("Failed to aggregate comment counts:", err);
