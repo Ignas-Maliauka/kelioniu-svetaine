@@ -71,11 +71,17 @@ router.get("/", requireAuth, async (req, res) => {
 // POST /api/events/  - create event (organiser = current user)
 router.post("/", requireAuth, async (req, res) => {
   try {
-    const { title, description, startDate, endDate, location, participants = [] } = req.body || {};
+    const { title, description, startDate, endDate, location, participants = [], state } = req.body || {};
     if (!title) return res.status(400).json({ message: "Title is required" });
     if (title.length < 2 || title.length > 50) return res.status(400).json({ message: "Title must be 2-50 characters long" });
     if (description && description.length > 200) return res.status(400).json({ message: "Description too long (max 200)" });
     if (location && location.length > 50) return res.status(400).json({ message: "Location too long (max 50)" });
+    const allowedStates = ["planned", "ongoing", "completed", "cancelled"];
+    let eventState = state;
+    if (eventState && !allowedStates.includes(eventState)) {
+      return res.status(400).json({ message: "Invalid event state" });
+    }
+    if (!eventState) eventState = undefined; // let schema default apply
 
     const ev = await Event.create({
       title,
@@ -83,6 +89,7 @@ router.post("/", requireAuth, async (req, res) => {
       startDate,
       endDate,
       location,
+      state: eventState,
       organiser: req.userId,
       participants,
       organisers: [req.userId], // owner starts as first organiser
@@ -126,11 +133,13 @@ router.patch("/:id", requireAuth, async (req, res) => {
     const isOrganiser = ev.organiser.equals(req.userId) || (Array.isArray(ev.organisers) && ev.organisers.some((o) => o.equals(req.userId)));
     if (!isOrganiser) return res.status(403).json({ message: "Forbidden" });
 
-    const updates = (({ title, description, startDate, endDate, location, participants }) => ({ title, description, startDate, endDate, location, participants }))(req.body);
+    const allowedStates = ["planned", "ongoing", "completed", "cancelled"];
+    const updates = (({ title, description, startDate, endDate, location, participants, state }) => ({ title, description, startDate, endDate, location, participants, state }))(req.body);
     Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
     if (updates.title && (updates.title.length < 2 || updates.title.length > 50)) return res.status(400).json({ message: "Title must be 2-50 characters long" });
     if (updates.description && updates.description.length > 200) return res.status(400).json({ message: "Description too long (max 200)" });
     if (updates.location && updates.location.length > 50) return res.status(400).json({ message: "Location too long (max 50)" });
+    if (updates.state && !allowedStates.includes(updates.state)) return res.status(400).json({ message: "Invalid event state" });
 
     const updated = await Event.findByIdAndUpdate(req.params.id, updates, { new: true }).populate("organiser", "-password").populate("participants", "-password").populate("organisers", "-password");
     res.json(updated);

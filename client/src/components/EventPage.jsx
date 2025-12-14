@@ -166,7 +166,6 @@ export default function EventPage() {
         </div>
       </div>
 
-      {/* Comments moved to bottom of page */}
       <EventDetails
         event={event}
         id={id}
@@ -189,7 +188,6 @@ export default function EventPage() {
 
       <EventPlanningSteps steps={steps} isOrganiser={isOrganiser} deleteStep={deleteStep} id={id} />
 
-      {/* Comments - moved to bottom, newest-first */}
       <EventComments
         id={id}
         comments={comments}

@@ -28,3 +28,6 @@ max lenght
 autorizacija 3 iteracijai
 # 3 iteracija
 Events puslapio componetizavimas
+# 4 iteracija
+Friends puslapiavimnas
+pagrindiniame puslapije neatsinaujina badge

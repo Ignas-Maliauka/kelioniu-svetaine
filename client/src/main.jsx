@@ -15,7 +15,7 @@ import EventPage from "./components/EventPage";
 import EventForm from "./components/EventForm";
 import ActivityForm from "./components/ActivityForm";
 import PlanningStepForm from "./components/PlanningStepForm";
-import Friends from "./pages/Friends";
+import Friends from "./components/Friends";
 import "./index.css";
 
 const router = createBrowserRouter([
